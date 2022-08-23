@@ -3,6 +3,23 @@
 # deployer image.
 #
 # If invoked as a command ending with "-debug", then emit copious debug data.
+#
+# ------------------------------------------------------------------------------
+# Copyright (C) 2022 Bishop Bettini <bishop@php.net>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+# ------------------------------------------------------------------------------
 
 set -euo pipefail
 trap 'abort "INTERRUPT" "Caught INT signal; exiting."' INT
@@ -38,17 +55,22 @@ export red green yellow blue magenta cyan bold nobold end
 main() {
   init_colors
 
-  # setup component paths based on the program-provided script location
-  init_paths
-  debug <<< "Base directory at ${base_dir}
-Bin directory at ${bin_dir}
-Library directory at ${lib_dir}
-Component base directory at ${component_base_dir}
-Component skeleton directory at ${component_skeleton_dir}"
+  gnu_banner
 
-  # process command line arguments then dispatch based on the extracted command
+  init_paths
+
   process_args "${@:-}"
+
   command_${command_arg} "${@:-}"
+}
+
+gnu_banner() {
+  local program="${0##*/}"
+  notify warn <<< "${bold}${program} Copyright (C) 2022 Bishop Bettini <bishop@php.net>${nobold}
+
+This program comes with ${bold}ABSOLUTELY NO WARRANTY${nobold}, is free software,
+and you are welcome to redistribute it under certain conditions.
+"
 }
 
 # show a usage message for humans
@@ -117,6 +139,7 @@ notify() {
   'success') color=${green};;
   'warning') color=${yellow};;
   'failure') color=${red};;
+  *) color=;; # keeps the current foreground color
   esac
   sed -e "s/^/${color}/" -e "s/$/${end}/" >&2
 }
@@ -163,6 +186,12 @@ init_paths() {
 
   # now optional ones
   component_skeleton_dir="${lib_dir}"/component_skeleton
+
+  debug <<< "Base directory at ${base_dir}
+Bin directory at ${bin_dir}
+Library directory at ${lib_dir}
+Component base directory at ${component_base_dir}
+Component skeleton directory at ${component_skeleton_dir}"
 }
 
 # process global command line arguments, validating them

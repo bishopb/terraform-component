@@ -1,6 +1,7 @@
 # terraform-component
 
-A configurable wrapper for easily deploying [Terraform][tf-home] components.
+A configurable workflow framework for deploying infrastructure resources using
+[Terraform][tf-home] with immutable [Docker][docker-home] builds.
 
 
 # Getting started
@@ -32,23 +33,47 @@ $ ./bin/terraform-component deploy my_tf_component plan
 
 # Overview
 
-A component is an isolated unit of cloud functionality. This mono-repo holds
-multiple components, a suite of tools to help deploy them, and common
-functionality to enhance component collaboration.
+A component is an isolated unit of infrastructure, defined as Terraform HCL. This
+mono-repo supports multiple components, a suite of tools to help deploy them, and
+common functionality to enhance component collaboration.
 
-## Directory organization
+## Motivation
 
-* `bin` contains tools useful for generating and deploying multiple terraform
-  components.
-* `components` contains sub-directories, one for each separate terraform-based 
-  component. You might want to use git sub-modules to separate your components
-  from this wrapper.
-* `lib` contains modules useful and common functionality that is to be used
-  across multiple terraform components. By adjusting configuration files in this
-  folder you can alter overall component behavior, activate common features, and
-  more.
+In ["What is Terraform?"][tf-whatis], HashiCorp says (emphasis ours):
+
+> HashiCorp Terraform is an infrastructure as code tool that lets you define
+> both cloud and on-prem resources in human-readable configuration files that
+> you can version, reuse, and share. _You can then use a consistent workflow to
+> provision and manage all of your infrastructure throughout its lifecycle._
+
+Terraform, as a tool ecosystem, neither provides a consistent deployment workflow
+nor has an opinion on how such a workflow should be written. This gap leads to
+workflow frameworks like [Terragrunt][terragrunt-home] and this framework.
+
+## Guiding principles
+
+Workflow frameworks are opinionated. They dictate configuration format and
+organization, workflow initiation and intervention, error handling, and so on.
+This framework adopts the following principles:
+
+1. *Only `terraform`, `docker`, `bash`, and POSIX tools need to be installed.*
+   Fewer dependencies means its easier to get started. Conventional dependencies
+   means less has to be learned to use the framework.
+1. *Configuration is written in `bash` and supports all programmatic features of
+   `bash` 3+*. Terraform is declarative, but shell programming and tools provide
+   lots more control over the generated Terraform.
+1. *Each terraform action comes from a uniquely tagged immutable image.* Changes
+   made to infrastructure must be from authoritative source that is traceable
+   back to a single point of control.
+1. *Common needs should be automatic. Uncommon needs should be easy.* Provider
+   configuration and authentication, remote state management, universal resource
+   tags, and many more common features should be built in. Where no built-in
+   exists, it should be easy to make one.
 
 ## Operation
+
+This workflow framework organizes resources into components, which as mentioned
+are isolated units of infrastructure.
 
 When you select a component to deploy, this wrapper will combine the common files
 from `lib` with the component specific files from `components/` into a build
@@ -66,6 +91,18 @@ To debug the result of the terraform, inspect the contents of the `work/deploy`
 directory after the deploy action completes. Note that these contents are made
 available by copying the results after the docker container finishes, not by
 mounting the docker container.
+
+## Directory organization
+
+* `bin` contains tools useful for generating and deploying multiple terraform
+  components.
+* `components` contains sub-directories, one for each separate terraform-based 
+  component. You might want to use git sub-modules to separate your components
+  from this wrapper.
+* `lib` contains modules useful and common functionality that is to be used
+  across multiple terraform components. By adjusting configuration files in this
+  folder you can alter overall component behavior, activate common features, and
+  more.
 
 ## State storage
 
@@ -88,5 +125,8 @@ set `TF_VAR_providers="aws"` and `TF_VAR_credentials="aws"` in `lib/deploy-env.s
 
 * [Reading environment variables in Terraform][ref-1]
 
+[docker-home]:https://www.docker.com
+[terragrunt-home]:https://terragrunt.gruntwork.io/
 [tf-home]:https://www.terraform.io
+[tf-whatis]:https://www.terraform.io/intro
 [ref-1]:https://support.hashicorp.com/hc/en-us/articles/4547786359571
