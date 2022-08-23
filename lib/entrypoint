@@ -1,0 +1,107 @@
+#!/bin/sh
+# Runs terraform, passing it the arguments the docker image was given. Invokes
+# any hooks that were defined.
+
+# useful variables
+deployer_dir="/opt/terraform-component/deployer"
+terraform_dir="${deployer_dir}/terraform"
+
+# program entrypoint
+main() {
+  # load up any component provided deploy hooks, overriding any of the defaults
+  # we have set herein
+  if [ -r "${deployer_dir}"/deploy-hooks.sh ]; then
+    source "${deployer_dir}"/deploy-hooks.sh
+  fi
+
+  # start terraforming
+  cd "${terraform_dir}"
+
+  terraform_action="$1"
+  shift
+
+  run_hook before_terraform "${terraform_action}" "${terraform_dir}"
+
+  run_hook before_terraform_init
+  terraform init -lockfile=readonly
+  run_hook after_terraform_init $?
+
+  run_hook before_terraform_"${terraform_action}" "$@"
+  terraform "${terraform_action}" "$@"
+  local ec=$?
+  run_hook after_terraform_"${terraform_action}" "${ec}"
+
+  run_hook after_terraform "${ec}"
+
+  return "${ec}"
+}
+
+# helper to decide if a custom hook exists, by name
+has_custom_hook() {
+  local name=$1
+  type "${name}" >/dev/null 2>&1
+}
+
+# helper to decide if a default hook exists, by name
+has_default_hook() {
+  local name=default_$1
+  type "${name}" >/dev/null 2>&1
+}
+
+# run a custom hook, which must exist
+run_custom_hook() {
+  local name=$1
+  shift
+  "${name}" "$@"
+}
+
+# run a default hook, which must exist
+run_default_hook() {
+  local name=default_$1
+  shift
+  "${name}" "$@"
+}
+
+# helper to run custom hook, if it exists, otherwise fall back to a default hook
+# if it exists
+run_hook() {
+  local name=$1
+  shift
+
+  if has_custom_hook "${name}"; then
+    if ! run_custom_hook "${name}" "$@"; then
+      echo "ERROR: ${name} hook exited with non-zero code: $?" >&2
+      exit 1
+    fi
+  elif has_default_hook "${name}"; then
+    if ! run_default_hook "${name}" "$@"; then
+      echo "ERROR: default ${name} hook exited with non-zero code: $?" >&2
+      exit 1
+    fi
+  fi
+}
+
+# the default before_terraform_init hook
+default_before_terraform_init() {
+  # if a common backend is requested, create a configuration block for that
+  # backend and pass its args to terraform init
+  if [ -n "${TF_VAR_backend:-}" ]; then
+    > "${terraform_dir}"/"${TF_VAR_backend_tf_file}" cat <<EOHCL
+terraform {
+  backend "${TF_VAR_backend}" {}
+}
+EOHCL
+    TF_CLI_ARGS_init="${TF_CLI_ARGS_init} ${TF_VAR_backend_init_args:-}"
+    export TF_CLI_ARGS_init
+  fi
+
+  # copy over the stashed lockfile so that terraform won't complain -- we're
+  # not storing the lockfile, as we use version constraints and build time
+  # signature checks to ensure we've got the right stuff
+  if [ -e "${TF_PLUGIN_CACHE_DIR:-}"/.terraform.lock.hcl ]; then
+    cp "${TF_PLUGIN_CACHE_DIR:-}"/.terraform.lock.hcl .
+  fi
+}
+
+main "$@"
+exit $?

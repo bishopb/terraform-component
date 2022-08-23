@@ -1,0 +1,444 @@
+#!/usr/bin/env bash
+# Provide tools to create and deploy terraform components using an immutable
+# deployer image.
+#
+# If invoked as a command ending with "-debug", then emit copious debug data.
+
+set -euo pipefail
+trap 'abort "INTERRUPT" "Caught INT signal; exiting."' INT
+trap 'abort "INTERRUPT" "Caught TERM signal; exiting."' TERM
+
+# important directories
+base_dir=
+bin_dir=
+lib_dir=
+component_dir=
+component_base_dir=
+component_skeleton_dir=
+export base_dir bin_dir lib_dir component_dir component_base_dir component_skeleton_dir
+
+# primary program arguments
+command_arg=
+component_arg=
+export command_arg component_arg
+
+# color table
+red=
+green=
+yellow=
+blue=
+magenta=
+cyan=
+bold=
+nobold=
+end=
+export red green yellow blue magenta cyan bold nobold end
+
+# program entry point
+main() {
+  init_colors
+
+  # setup component paths based on the program-provided script location
+  init_paths
+  debug <<< "Base directory at ${base_dir}
+Bin directory at ${bin_dir}
+Library directory at ${lib_dir}
+Component base directory at ${component_base_dir}
+Component skeleton directory at ${component_skeleton_dir}"
+
+  # process command line arguments then dispatch based on the extracted command
+  process_args "${@:-}"
+  command_${command_arg} "${@:-}"
+}
+
+# show a usage message for humans
+usage() {
+  local message="${1:-Tools to create and deploy terraform components}"
+  [ 0 -lt $# ] && message="${red}${message}${end}"
+  local program="${0##*/}"
+  cat <<-EOTXT
+${message}
+
+${bold}USAGE${end}
+  ${green}${program} ${bold}create${nobold} <component>${end}
+    Create a Terraform-based component and add to it skeleton files. The component
+    argument is a unique name, which will be created as a sub-directory within the
+    component base directory (see references section, below). The new directory
+    contains the terraform, configuration, and other files associated with that
+    unique component. Update these files as appropriate for that component.
+
+  ${green}${program} ${bold}deploy${nobold} <component> <action> [action-option...]${end}
+    Run the given terraform action on the given component. The component must already
+    exist in the component directory (use create option if not). The action argument
+    is typically "plan", "apply", or "destroy". See the Terraform command help
+    for more information.
+
+  ${green}${program} ${bold}help${end}
+    Get this help message.
+
+${bold}REFERENCES${end}
+  COMPONENT_BASE_DIR=${component_base_dir}
+
+  Terraform command help https://www.terraform.io/cli/commands
+EOTXT
+}
+
+# halt the program with a defined exit code
+abort() {
+  local code="${1:-1}"
+  local message="${2:-}"
+  [ -n "${message}" ] && {
+    echo "${red}${message}${end}"
+  }
+  case "${code}" in
+  'SUCCESS') exit 0;;
+  'INVALID_INVOCATION') exit 2;;
+  'MISSING_DEPENDENCY') exit 3;;
+  'RUNTIME_EXCEPTION') exit 4;;
+  'INTERRUPT') exit 5;;
+  'ASSERTION_FAILED') exit 65;;
+  *) exit 1;;
+  esac
+}
+
+# if invoked in debug mode, stream standard in with a debug header
+debug() {
+  if [[ "${0##*/}" = *-debug ]]; then
+    local now=$(command date -u +"%s")
+    sed "s/^/DEBUG:${now}: /" >&2
+  fi
+}
+
+# notify the user that something happened
+notify() {
+  local color
+  case "${1:-info}" in
+  'info') color=${cyan};;
+  'success') color=${green};;
+  'warning') color=${yellow};;
+  'failure') color=${red};;
+  esac
+  sed -e "s/^/${color}/" -e "s/$/${end}/" >&2
+}
+
+# run a significant command, tracking it with debug statements
+# Note: use this when you want to track commands that modify state and have
+# Note: significant effect; don't just run every command through this.
+run() {
+  local ec
+  debug <<< "Running command: $@"
+  "$@"
+  ec=$?
+  debug <<< "Command finished: ${ec}"
+  return "${ec}"
+}
+
+# initialize the color table
+init_colors() {
+  if [ -z "${NO_COLOR:-}" -a -z "${TERRAFORM_COMPONENT_NO_COLOR:-}" ]; then
+    red=$(printf '\e[31m')
+    green=$(printf '\e[32m')
+    yellow=$(printf '\e[33m')
+    blue=$(printf '\e[34m')
+    magenta=$(printf '\e[35m')
+    cyan=$(printf '\e[36m')
+    bold=$(printf '\e[1m')
+    nobold=$(printf '\e[22m')
+    end=$(printf '\e[0m')
+  fi
+}
+
+# calculate paths to components' files
+init_paths() {
+  # mandatory paths first
+  # @see https://stackoverflow.com/a/246128/2908724
+  base_dir="$(command cd -- "$(command dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && command pwd)"/..
+  bin_dir="${base_dir}"/bin
+  lib_dir="${base_dir}"/lib
+  component_base_dir="${base_dir}"/components
+  [ -d "${base_dir}" -a -d "${bin_dir}" -a -d "${lib_dir}" -a -d "${component_base_dir}" ] || {
+    abort 'ASSERTION_FAILED' \
+      "Missing one or more of these directories: ${base_dir}, ${bin_dir}, ${lib_dir}, ${component_base_dir}"
+  }
+
+  # now optional ones
+  component_skeleton_dir="${lib_dir}"/component_skeleton
+}
+
+# process global command line arguments, validating them
+process_args() {
+  # validate the command
+  command_arg="${1:-}"
+  [ -n "${command_arg}" ] || {
+    usage 'Missing the first argument'
+    abort 'INVALID_INVOCATION'
+  }
+  case "${command_arg}" in
+  # create and deploy take the standard arguments, break out and handle those
+  'create') ;;
+  'deploy') ;;
+  # help takes no other arguments, return early
+  'help') return;;
+  '-h') command_arg=help; return;;
+  '--help') command_arg=help; return;;
+  # fall through in an error
+  *)
+    usage 'First argument must be either "create", "deploy", or "help"'
+    abort 'INVALID_INVOCATION'
+    ;;
+  esac
+
+  # validate the component argument and set the component directory
+  component_arg="${2:-}"
+  [ -n "${component_arg}" ] || {
+    usage 'Missing the second argument'
+    abort 'INVALID_INVOCATION'
+  }
+  component_dir="${component_base_dir}"/"${component_arg}"
+}
+
+# read environment variables from one or more files, with later ones overriding
+# earlier ones, and output them.
+read_env() {
+  # source the environment files in a subshell (so as to not pollute this one),
+  # and use comm to pluck out just those newly set ones
+  # Note: we're using set -a to prevent having to "export" everything in our
+  # Note: environment files.
+  # Note: @seealso https://unix.stackexchange.com/a/614573/50240
+  comm -13 \
+    <(env | sort) \
+    <(for f in "${@}"; do set -a; [ -r "${f}" ] && source "${f}"; set +a; done; env | sort)
+}
+
+# draw a simple box around a single line of text
+# @see https://antofthy.gitlab.io/info/shell/small_functions.txt
+box() {
+  local string="$@"
+  local indent="    "
+  printf "${indent}\n"
+  printf "${indent}┏━${string//?/━}━┓\n"
+  printf "${indent}┃ ${string//?/ } ┃\n"
+  printf "${indent}┃ ${string} ┃\n"
+  printf "${indent}┃ ${string//?/ } ┃\n"
+  printf "${indent}┗━${string//?/━}━┛\n"
+  printf "${indent}\n"
+}
+
+# create a component, giving it skeleton files
+command_create() {
+  debug <<< "Command is $@"
+  debug <<< "Component files to be located at ${component_dir}"
+
+  # check that the requested component directory does not already exist
+  if [ -d "${component_dir}" ]; then
+    debug <<< "Component directory already exists. Cannot create."
+    abort 'RUNTIME_EXCEPTION' \
+      "Cannot create a component when the component name already exists at ${component_dir}: $?"
+  fi
+
+  # proceed with creating the component directory
+  notify <<< "Creating component directory at ${bold}${component_dir}${nobold} ..."
+  run mkdir -p "${component_dir}" || \
+    abort 'RUNTIME_EXCEPTION' "Failed to make directory at ${component_dir}: $?"
+  notify success <<< "Created component directory"
+
+  # copy any skeleton files into that new directory
+  if [ -d "${component_skeleton_dir}" ]; then
+    notify <<< "Copying skeleton files from ${bold}${component_skeleton_dir}${nobold} to ${bold}${component_dir}${nobold} ..."
+    run cp -aRp "${lib_dir}"/component_skeleton/* "${component_dir}" || \
+      abort 'RUNTIME_EXCEPTION' \
+        "Failed to copy skeleton files from ${component_skeleton_dir} to ${component_dir}: $?"
+    notify success <<< "Copied component skeleton files"
+  else
+    debug <<< "No component skeleton files at ${component_skeleton_dir}"
+  fi
+}
+
+# setup the environment and terraform for a component, then kick off a docker container to do the job
+command_deploy() {
+  debug <<< "Command is $@"
+  debug <<< "Component files expected at ${component_dir}"
+  [ -d "${component_dir}" ] || \
+    abort 'RUNTIME_EXCEPTION' "Component does not exist at ${component_dir}"
+
+  # validate the terraform arguments
+  [ 2 -lt $# ] || {
+    usage 'Missing the terraform action argument, usually "plan", "apply", or "destroy"'
+    abort 'INVALID_INVOCATION'
+  }
+  local terraform_args=("${@:3}")
+  debug <<< "given terraform arguments are ${terraform_args}"
+
+  # extend terraform arguments as necessary
+  if [[ "${terraform_args[0]}" =~ ^(apply|destroy)$ ]]; then
+    terraform_args+=(
+      # @see https://stackoverflow.com/a/59958372/2908724
+      -auto-approve
+      -input=false
+    )
+  fi
+
+  # ensure we have docker and any other dependencies
+  local docker_path="$(command -v docker)"
+  [ -n "${docker_path}" ] || {
+    usage "docker not installed or not found in PATH=${PATH}"
+    abort 'MISSING_DEPENDENCY'
+  }
+  debug <<< "docker executable found at ${docker_path}"
+
+  # remove local copies of the build and deploy directory from previous runs, so
+  # that we are starting clean
+  local work_dir="${base_dir}"/work
+  local build_dir="${work_dir}"/build
+  local deploy_dir="${work_dir}"/deploy
+  notify <<< "Preparing work directory (${bold}${work_dir}${nobold}) ..."
+  run rm -rf "${work_dir}"/{build,deploy} || \
+    abort 'RUNTIME_EXCEPTION' \
+      "Unable to remove build or deploy subdirectories in work directory ${work_dir}: $?"
+  run mkdir -p "${work_dir}"/{build,deploy}/{,terraform} || \
+    abort 'RUNTIME_EXCEPTION' \
+      "Unable to create local working directory descendents in ${work_dir}: $?"
+  notify success <<< "Prepared work directory"
+
+  # copy any stashed terraform state into build directory, so it'll be available
+  # in this deploy
+  local local_tfstate="${work_dir}"/terraform.tfstate
+  if [ -e "${local_tfstate}" ]; then
+    notify <<< 'Copying stashed terraform state to build directory ...'
+    run cp "${local_tfstate}" "${build_dir}"/terraform/ || \
+      abort 'RUNTIME_EXCEPTION' "Unable to copy state ${local_tfstate} to ${build_dir}: $?"
+    notify success <<< 'Copied stashed terraform state to build directory'
+  else
+    debug <<< "No terraform state stashed at ${local_tfstate}"
+  fi
+
+  # copy all the files we need into into working directory
+  # Note: files will be copied in the order listed here. If a file with the
+  # Note: same name already exists, an error will be emitted (because we don't
+  # Note: want silent overwrite).
+  local f files=(
+    "${lib_dir}"/entrypoint
+    "${lib_dir}"/terraform
+    "${component_dir}"/deploy-hooks.sh
+    "${component_dir}"/terraform
+  )
+  for f in "${files[@]}"; do
+    if [ -e "${f}" ]; then
+      run cp -aRp -n "${f}" "${build_dir}" || {
+        abort 'RUNTIME_EXCEPTION' "Unable to copy file ${f} into local build directory ${build_dir}: $?"
+      }
+    fi
+  done
+
+  # build the terraform deployer image
+  notify <<< "Building deployer image ..."
+  local image_tag="terraform-component-deployer-${component_arg}:latest"
+  local docker_build_args=(
+    --tag "${image_tag}"
+    --file "${lib_dir}"/Dockerfile
+  )
+  local env_files=(
+    "${lib_dir}"/build-env.sh
+    "${component_dir}"/build-env.sh
+  )
+  while IFS= read -r line; do
+    if [[ "${line}" =~ ^.*= ]]; then
+      docker_build_args+=(--build-arg "${line}")
+    else
+      abort 'RUNTIME_EXCEPTION' "Unexpected output when setting environment variable: ${line}"
+    fi
+  done < <(read_env "${env_files[@]}" 2>&1)
+  run docker build "${docker_build_args[@]}" "${build_dir}"
+  notify success <<< "Built deployer image, tagged as ${bold}${image_tag}${nobold}"
+
+  # run the deployer, giving it access to the build time environment variables
+  # as well as the deploy time, the latter overwritting the former
+  notify <<< "Running deployer image ${bold}${image_tag}${nobold}, with ${bold}${terraform_args[@]}${nobold} ..."
+  local container_name=$(uuidgen)
+  local docker_run_args=(
+    --name "${container_name}"
+  )
+  env_files+=(
+    "${lib_dir}"/deploy-env.sh
+    "${component_dir}"/deploy-env.sh
+  )
+  while IFS= read -r line; do
+    if [[ "${line}" =~ ^PASSTHRU_ENV= ]]; then
+      local e
+      # line will be "PASSTHRU_ENV=foo bar baz", so we get everything after the
+      # equals sign and we split on whitespace (which is why the ${line#*=} is
+      # _not_ quoted in this for loop).
+      for e in ${line#*=}; do
+        docker_run_args+=(--env "${e}")
+      done
+    elif [[ "${line}" =~ ^MOUNTPOINTS= ]]; then
+      local e
+      # line will be "MOUNTPOINTS=foo:bar baz:quux", so we handle this like we
+      # handle PASSTHRU_ENV above. Note that all mountpoints are read-only
+      for e in ${line#*=}; do
+        docker_run_args+=(--volume "${e}":ro)
+      done
+    elif [[ "${line}" =~ ^.*= ]]; then
+      docker_run_args+=(--env "${line}")
+    else
+      abort 'RUNTIME_EXCEPTION' "Unexpected output when setting environment variable: ${line}"
+    fi
+  done < <(read_env "${env_files[@]}" 2>&1)
+
+  # run the deployer container, copying the changes it makes back to our host for
+  # debugging and analysis purposes
+  local ec=0
+  run docker run "${docker_run_args[@]}" "${image_tag}" "${terraform_args[@]}" || ec=$?
+  docker_copy_changes "${container_name}" "${deploy_dir}"
+  run docker container rm "${container_name}" >/dev/null \
+    || abort 'RUNTIME_EXCEPTION' "Unable to remove container: $?"
+  if [ -f "${deploy_dir}"/terraform/terraform.tfstate ]; then
+    notify <<< 'Stashing local terraform state generated by deployer'
+    run cp "${deploy_dir}"/terraform/terraform.tfstate "${local_tfstate}" || \
+      abort 'RUNTIME_EXCEPTION' \
+        "Unable to stash terraform state ${deploy_dir}/terraform/terraform.tfstate to ${local_tfstate}: $?"
+    notify success <<< 'Stashed local terraform state'
+  else
+    debug <<< "No local terraform state generated by deploy process"
+  fi
+
+  # exit with an appropriate message
+  if [ 0 -eq "${ec}" ]; then
+    echo "${green}${bold}"
+    box "DEPLOY $(echo ${terraform_args[0]} | tr '[a-z]' '[A-Z]') SUCCEEDED!"
+    echo "${end}"
+  else
+    echo "${red}${bold}"
+    box "DEPLOY $(echo ${terraform_args[0]} | tr '[a-z]' '[A-Z]') FAILED. :("
+    echo "${end}"
+    abort 'RUNTIME_EXCEPTION'
+  fi
+}
+
+# copy the working directory out of a docker container and into a local directory
+# This is useful for inspecting what the deploy container did after it's done.
+docker_copy_changes() {
+  local container_name=$1
+  local local_dir=$2
+
+  # get the working directory out of the image, as that's what we'll copy back
+  # to our local directory
+  local working_dir=
+  working_dir=$(run docker container inspect "${container_name}" --format '{{ .Config.WorkingDir }}')
+
+  # copy the working directory back
+  # Note: the /. on the container path copies the contents of the directory, not
+  # Note: the directory itself
+  # Note: @see https://stackoverflow.com/a/32576340/2908724
+  notify <<< "Copying directory from container (${bold}${working_dir}${nobold}) to host (${bold}${local_dir}${nobold}) ..."
+  run docker cp "${container_name}":"${working_dir}"/. "${local_dir}" \
+    || abort 'RUNTIME_EXCEPTION' "Unable to copy container working directory to host: $?"
+  notify success <<< "Copied working directory from container to host"
+}
+
+command_help() {
+  usage
+  abort 'SUCCESS'
+}
+
+main "${@:-}"
