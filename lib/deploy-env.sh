@@ -40,7 +40,7 @@ TF_VAR_user="${default_TF_VAR_user:-$(whoami)@$(hostname)}"
 # @seealso https://github.com/hashicorp/terraform/issues/19300
 # @seealso https://github.com/hashicorp/terraform/issues/13022#issuecomment-1160613849
 # @seealso https://brendanthompson.com/posts/2021/10/dynamic-terraform-backend-configuration
-TF_VAR_backend="${TF_VAR_backend:-}"
+TF_VAR_backend="${default_TF_VAR_backend:-}"
 if [[ "${TF_VAR_backend}" = 's3' ]]; then
   TF_VAR_backend_s3_bucket_name="${TF_VAR_project}-tfstate-files"
   TF_VAR_backend_s3_lock_table_name="${TF_VAR_project}-tflock-table"
@@ -63,7 +63,7 @@ fi
 # Since we're using an S3 backend by default, we also want to use the AWS
 # provider by default
 #
-TF_VAR_providers="${TF_VAR_providers:-}"
+TF_VAR_providers="${default_TF_VAR_providers:-}"
 if [[ "${TF_VAR_providers}" = *aws* ]]; then
   [ -n "${AWS_PROFILE:-}" ]    && PASSTHRU_ENV+=" AWS_PROFILE"
   [ -n "${AWS_REGION:-}" ]     && PASSTHRU_ENV+=" AWS_REGION"
@@ -78,7 +78,7 @@ fi
 #
 # Note: Only pass through the credentials you need to support the providers in
 # Note: your terraform.
-TF_VAR_credentials="${TF_VAR_credentials:-}"
+TF_VAR_credentials="${default_TF_VAR_credentials:-}"
 if [[ "${TF_VAR_credentials}" = *aws* ]]; then
   [ -n "${AWS_ACCESS_KEY_ID:-}" ]     && PASSTHRU_ENV+=" AWS_ACCESS_KEY_ID"
   [ -n "${AWS_SECRET_ACCESS_KEY:-}" ] && PASSTHRU_ENV+=" AWS_SECRET_ACCESS_KEY"
