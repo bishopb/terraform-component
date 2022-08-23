@@ -21,6 +21,14 @@ To deploy a component, you will need to either authenticate with a provider
 (like AWS, GCP, or Azure) or use a local implementation (like LocalStack). Read
 on for more on authentication. Or install a local implementation and get started.
 
+For example, if you have already authenticated to AWS, then you can safely pass
+through the AWS configuration and credentials, like so:
+
+```sh
+$ export default_TF_VAR_providers=aws
+$ export default_TF_VAR_credentials=aws
+$ ./bin/terraform-component deploy my_tf_component plan
+```
 
 # Overview
 
