@@ -19,5 +19,6 @@ locals {
     ModifiedBy = var.user
     Project    = var.project
     Component  = var.component
+    ImageTag   = var.image_tag
   }
 }

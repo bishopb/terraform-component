@@ -5,6 +5,13 @@ variable "component" {
   nullable = false
 }
 
+variable "image_tag" {
+  type = string
+  description = "The deployer immutable image tag holding the changes"
+  sensitive = false
+  nullable = false
+}
+
 variable "project" {
   type = string
   description = "The repository holding the terraform for this component"

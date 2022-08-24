@@ -69,6 +69,8 @@ This framework adopts the following principles:
    configuration and authentication, remote state management, universal resource
    tags, and many more common features should be built in. Where no built-in
    exists, it should be easy to make one.
+1. *The overhead must be small and the runtime fast.* The framework must not
+   get in the way of a developer by being slow, bulky, or hard to use.
 
 ## Operation
 

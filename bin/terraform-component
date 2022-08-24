@@ -361,7 +361,8 @@ command_deploy() {
 
   # build the terraform deployer image
   notify <<< "Building deployer image ..."
-  local image_tag="terraform-component-deployer-${component_arg}:latest"
+  local now=$(command date -u +"%s")
+  local image_tag="terraform-component-deployer-${component_arg}:${now}"
   local docker_build_args=(
     --tag "${image_tag}"
     --file "${lib_dir}"/Dockerfile
@@ -413,6 +414,9 @@ command_deploy() {
       abort 'RUNTIME_EXCEPTION' "Unexpected output when setting environment variable: ${line}"
     fi
   done < <(read_env "${env_files[@]}" 2>&1)
+
+  # do not allow the environment to overwrite the image tag
+  docker_run_args+=(--env TF_VAR_image_tag="${image_tag}")
 
   # run the deployer container, copying the changes it makes back to our host for
   # debugging and analysis purposes
