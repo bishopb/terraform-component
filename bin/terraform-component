@@ -474,4 +474,9 @@ command_help() {
   abort 'SUCCESS'
 }
 
-main "${@:-}"
+# add source_dir to head of path, break these out into sub-commands
+# add tests
+if [[ "${0}" = */terraform-component* ]]; then
+  main "${@:-}"
+  exit $?
+fi
