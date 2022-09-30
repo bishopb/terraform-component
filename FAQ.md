@@ -65,3 +65,11 @@ The former is where our private components are and the latter is the standard
 components from this tool.
 
 [so-how-to-dl-gh]:https://stackoverflow.com/a/25060822/2908724
+
+
+## How can I add or remove providers?
+
+Create a file named `providers_override.tf` (or similar, it's only important
+it end in `_override.tf`) and in that file specify the providers you need. The
+built deploy container will have a lock file that matches the resolution of
+those providers with the default ones.
