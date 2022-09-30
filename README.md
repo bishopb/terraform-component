@@ -4,13 +4,13 @@ A configurable workflow framework for deploying infrastructure resources using
 [Terraform][tf-home] with immutable [Docker][docker-home] builds.
 
 
-# Getting started
+# Quickstart
 
-1. Clone this repository
+1. Fork this repository
 1. Create or edit an existing terraform component
 1. Deploy one or more terraform components
 
-Example, once you have cloned this repository:
+Example, once you have forked and cloned this repository:
 
 ```sh
 $ ./bin/terraform-component create my_tf_component

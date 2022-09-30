@@ -30,9 +30,9 @@ base_dir=
 bin_dir=
 lib_dir=
 component_dir=
-component_base_dir=
+component_path=
 component_skeleton_dir=
-export base_dir bin_dir lib_dir component_dir component_base_dir component_skeleton_dir
+export base_dir bin_dir lib_dir component_dir component_path component_skeleton_dir
 
 # primary program arguments
 command_arg=
@@ -85,13 +85,13 @@ ${bold}USAGE${end}
   ${green}${program} ${bold}create${nobold} <component>${end}
     Create a Terraform-based component and add to it skeleton files. The component
     argument is a unique name, which will be created as a sub-directory within the
-    component base directory (see references section, below). The new directory
-    contains the terraform, configuration, and other files associated with that
-    unique component. Update these files as appropriate for that component.
+    first directory of the components path (see references section, below). The new
+    directory contains the terraform, configuration, and other files associated with
+    that unique component. Update these files as appropriate for that component.
 
   ${green}${program} ${bold}deploy${nobold} <component> <action> [action-option...]${end}
     Run the given terraform action on the given component. The component must already
-    exist in the component directory (use create option if not). The action argument
+    exist in the components path (use create option if not). The action argument
     is typically "plan", "apply", or "destroy". See the Terraform command help
     for more information.
 
@@ -99,7 +99,7 @@ ${bold}USAGE${end}
     Get this help message.
 
 ${bold}REFERENCES${end}
-  COMPONENT_BASE_DIR=${component_base_dir}
+  COMPONENTS_PATH=${component_path}
 
   Terraform command help https://www.terraform.io/cli/commands
 EOTXT
@@ -178,10 +178,10 @@ init_paths() {
   base_dir="$(command cd -- "$(command dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && command pwd)"/..
   bin_dir="${base_dir}"/bin
   lib_dir="${base_dir}"/lib
-  component_base_dir="${base_dir}"/components
-  [ -d "${base_dir}" -a -d "${bin_dir}" -a -d "${lib_dir}" -a -d "${component_base_dir}" ] || {
+  component_path=${COMPONENT_PATH:-"${base_dir}"/components}
+  [ -d "${base_dir}" -a -d "${bin_dir}" -a -d "${lib_dir}" ] || {
     abort 'ASSERTION_FAILED' \
-      "Missing one or more of these directories: ${base_dir}, ${bin_dir}, ${lib_dir}, ${component_base_dir}"
+      "Missing one or more of these directories: ${base_dir}, ${bin_dir}, ${lib_dir}"
   }
 
   # now optional ones
@@ -190,7 +190,7 @@ init_paths() {
   debug <<< "Base directory at ${base_dir}
 Bin directory at ${bin_dir}
 Library directory at ${lib_dir}
-Component base directory at ${component_base_dir}
+Component path is ${component_path}
 Component skeleton directory at ${component_skeleton_dir}"
 }
 
@@ -223,7 +223,29 @@ process_args() {
     usage 'Missing the second argument'
     abort 'INVALID_INVOCATION'
   }
-  component_dir="${component_base_dir}"/"${component_arg}"
+
+  # find the component within our component path
+  # @see https://unix.stackexchange.com/a/276616/50240
+  local nl=$'\n'
+  for dir in ${component_path//:/${nl}}; do
+    if [ -n "${dir}" -a -d "${dir}"/"${component_arg}" ]; then
+      component_dir="${dir}"/"${component_arg}"
+      debug <<< "Searched component path, found existing component directory at ${component_dir}"
+      return 0
+    fi
+  done
+
+  # if we didn't find it, then we'll assume it'll be created at the first
+  # directory in our component path
+  component_dir="${component_path%%:*}"
+  if [ -n "${component_dir}" ]; then
+    component_dir="${component_dir}"/"${component_arg}"
+    debug <<< "Searched component path, but did not find existing component directory."
+    debug <<< "Assuming component directory will be at ${component_dir}"
+  else
+    usage "Cannot determine location of component from given component path: ${component_path}"
+    abort 'INVALID_INVOCATION'
+  fi
 }
 
 # read environment variables from one or more files, with later ones overriding
