@@ -42,8 +42,8 @@ TF_VAR_user="${default_TF_VAR_user:-$(whoami)@$(hostname)}"
 # @seealso https://brendanthompson.com/posts/2021/10/dynamic-terraform-backend-configuration
 TF_VAR_backend="${default_TF_VAR_backend:-}"
 if [[ "${TF_VAR_backend}" = 's3' ]]; then
-  TF_VAR_backend_s3_bucket_name="${TF_VAR_project}-tfstate-files"
-  TF_VAR_backend_s3_lock_table_name="${TF_VAR_project}-tflock-table"
+  TF_VAR_backend_s3_bucket_name="${default_TF_VAR_backend_s3_bucket_name:-${TF_VAR_project}-tfstate-files}"
+  TF_VAR_backend_s3_lock_table_name="${default_TF_VAR_backend_s3_lock_table_name:-${TF_VAR_project}-tflock-table}"
   TF_VAR_backend_tf_file='backend.common.tf'
   TF_VAR_backend_init_args=
   add_init_arg() {
