@@ -47,14 +47,11 @@ if [[ "${TF_VAR_backend}" = 's3' ]]; then
   TF_VAR_backend_s3_region="${default_TF_VAR_backend_s3_region:-${AWS_REGION:-}}"
   TF_VAR_backend_tf_file='backend.common.tf'
   TF_VAR_backend_init_args=
-  add_init_arg() {
-    TF_VAR_backend_init_args+=" -backend-config='${1}'"
-  }
-  add_init_arg "bucket=${TF_VAR_backend_s3_bucket_name}"
-  add_init_arg "key=${TF_VAR_component}.tfstate"
-  add_init_arg "dynamodb_table=${TF_VAR_backend_s3_lock_table_name}"
-  add_init_arg "encrypt=true"
-  unset add_init_arg # this was for internal use, don't want this helper exported
+  TF_VAR_backend_init_args+="-backend-config=bucket=${TF_VAR_backend_s3_bucket_name} "
+  TF_VAR_backend_init_args+="-backend-config=key=${TF_VAR_component}.tfstate "
+  TF_VAR_backend_init_args+="-backend-config=dynamodb_table=${TF_VAR_backend_s3_lock_table_name} "
+  TF_VAR_backend_init_args+="-backend-config=region=${TF_VAR_backend_s3_region} "
+  TF_VAR_backend_init_args+="-backend-config=encrypt=true"
 fi
 
 # Pass through the properties and configuration necessary for the providers in
