@@ -1,7 +1,7 @@
 # Components may run custom actions during a deploy, using hooks documented
 # within this file.
 #
-# Hooks are written as bash functions, using names as defined below. They are
+# Hooks are written as POSIX sh functions, using names as defined below. They are
 # useful for inspecting or modifying the deploy time environment outside of
 # the declarative way Terraform runs, but they should be used sparingly: almost
 # always Terraform can do what needs to be done.

@@ -59,9 +59,9 @@ This framework adopts the following principles:
 1. *Only `terraform`, `docker`, `bash`, and POSIX tools need to be installed.*
    Fewer dependencies means its easier to get started. Conventional dependencies
    means less has to be learned to use the framework.
-1. *Configuration is written in `bash` and supports all programmatic features of
-   `bash` 3+*. Terraform is declarative, but shell programming and tools provide
-   lots more control over the generated Terraform.
+1. *Configuration is written in POSIX `sh` shell.* Terraform is declarative, but
+   shell programming and tools provide lots more control over the generated
+   Terraform.
 1. *Each terraform action comes from a uniquely tagged immutable image.* Changes
    made to infrastructure must be from authoritative source that is traceable
    back to a single point of control.
