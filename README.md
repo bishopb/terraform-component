@@ -14,7 +14,7 @@ Example, once you have forked and cloned this repository:
 
 ```sh
 $ ./bin/terraform-component create my_tf_component
-$ ${EDITOR:-vi} components/my_tf_component/terraform/main.tf
+$ # edit the files in components/my_tf_component/terraform/
 $ ./bin/terraform-component deploy my_tf_component plan
 ```
 
@@ -37,6 +37,8 @@ A component is an isolated unit of infrastructure, defined as Terraform HCL. Thi
 mono-repo supports multiple components, a suite of tools to help deploy them, and
 common functionality to enhance component collaboration.
 
+[Learn more about components with this official guide.](./components/README.md)
+
 ## Motivation
 
 In ["What is Terraform?"][tf-whatis], HashiCorp says (emphasis ours):
@@ -56,7 +58,7 @@ Workflow frameworks are opinionated. They dictate configuration format and
 organization, workflow initiation and intervention, error handling, and so on.
 This framework adopts the following principles:
 
-1. *Only `terraform`, `docker`, `bash`, and POSIX tools need to be installed.*
+1. *Only `docker`, `bash` and POSIX tools need to be installed.*
    Fewer dependencies means its easier to get started. Conventional dependencies
    means less has to be learned to use the framework.
 1. *Configuration is written in POSIX `sh` shell.* Terraform is declarative, but
