@@ -25,3 +25,17 @@ variable "user" {
   sensitive = false
   nullable = false
 }
+
+variable "repository" {
+  type = string
+  description = "The source code repository where the component code can be found"
+  sensitive = false
+  nullable = false
+}
+
+variable "product" {
+  type = string
+  description = "The product supported by the component"
+  sensitive = false
+  nullable = false
+}
