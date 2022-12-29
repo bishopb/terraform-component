@@ -19,6 +19,10 @@ TF_VAR_project="${default_TF_VAR_project:-terraform-component}"
 # Provide a rough idea of who's making this change
 TF_VAR_user="${default_TF_VAR_user:-$(whoami)@$(hostname)}"
 
+# Expose additional common tags
+TF_VAR_repository="${default_TF_VAR_repository:-}"
+TF_VAR_product="${default_TF_VAR_product:-}"
+
 # Provide a means for all components to use a common backend. Because certain
 # values in our backend configuration are dynamic and Terraform does not
 # support variables in backend configuration, we set the entire configuration

@@ -14,7 +14,7 @@ variable "image_tag" {
 
 variable "project" {
   type = string
-  description = "The repository holding the terraform for this component"
+  description = "The business project implementing this component"
   sensitive = false
   nullable = false
 }
@@ -22,6 +22,20 @@ variable "project" {
 variable "user" {
   type = string
   description = "The user performing the change (approximately, derives from whoami and hostname on endpoint)"
+  sensitive = false
+  nullable = false
+}
+
+variable "repository" {
+  type = string
+  description = "The source code repository where the component code can be found"
+  sensitive = false
+  nullable = false
+}
+
+variable "product" {
+  type = string
+  description = "The product supported by the component"
   sensitive = false
   nullable = false
 }
