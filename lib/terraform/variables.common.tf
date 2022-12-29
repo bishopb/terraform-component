@@ -14,7 +14,7 @@ variable "image_tag" {
 
 variable "project" {
   type = string
-  description = "The repository holding the terraform for this component"
+  description = "The business project implementing this component"
   sensitive = false
   nullable = false
 }
