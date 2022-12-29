@@ -10,7 +10,7 @@
 # @seealso https://support.hashicorp.com/hc/en-us/articles/4406026108435
 locals {
   common_tags = {
-    # Note: to avoid CreatedAt being overwritten each deploy, add a lifecycle
+    # Note: to avoid Created values being overwritten each deploy, add a lifecycle
     # Note: block to every resource, like so:
     # Note: lifecycle { ignore_changes = [ tags["CreatedAt"], tags["CreatedBy"] ] }
     CreatedAt  = timestamp()
@@ -20,5 +20,7 @@ locals {
     Project    = var.project
     Component  = var.component
     ImageTag   = var.image_tag
+    Repository = var.repository
+    Product    = var.product
   }
 }
